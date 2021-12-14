@@ -1,0 +1,46 @@
+#!/bin/bash
+
+#set -ex
+
+array=($URL)
+
+length=${#array[@]}
+createFile(){
+    for u in "${array[@]}"
+    do
+        ping -c1 $u | sed -nE 's/^PING[^(]+\(([^)]+)\).*/\1/p' > /tmp/"$u".ip.txt 
+    done
+}
+
+matchIp(){
+    for (( j=0; j<length; j++ ));
+    do
+        #printf "      %s\n" "${array[$j]}"
+        ping_cmd=$(ping -c1 "${array[$j]}" | sed -nE 's/^PING[^(]+\(([^)]+)\).*/\1/p')
+        cat_text=$(cat /tmp/"${array[$j]}".ip.txt)
+        check_file=$(ls /tmp/"${array[$j]}".ip.txt)
+        if [[ "$cat_text" == "$ping_cmd" ]] ; then
+            echo "ip ${array[$j]} with $cat_text same"
+        elif [[ ! -f "$check_file" ]] ; then
+            echo "ups file not found"
+            createFile
+        elif [[ "$cat_text" != "$ping_cmd" ]] ; then
+            echo "IP Has changed, restart nginx"
+            nginx -s reload
+            echo "executing create ip file txt...."
+            createFile
+        else
+            echo "nothing to do"
+        fi
+    done
+}
+
+createFile
+echo "done creating txt ip"
+
+while true
+do
+    sleep 10s
+    matchIp
+    printf "\n"
+done
